@@ -1,0 +1,82 @@
+name: Build CPAP CSV Exporter APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'cpap-csv-exporter-v0.2-source.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 37
+        shell: bash
+        run: |
+          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+
+      - name: Set up Gradle 9.6
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Unpack Android source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          rm -rf build-source
+          mkdir build-source
+          unzip -q cpap-csv-exporter-v0.2-source.zip -d build-source
+
+      - name: Locate Android project
+        id: project
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SETTINGS=$(find build-source -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -1)
+          test -n "$SETTINGS"
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        shell: bash
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          set -euxo pipefail
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APK=$(find '${{ steps.project.outputs.dir }}' -type f -path '*/build/outputs/apk/debug/*.apk' | head -1)
+          test -n "$APK"
+          mkdir -p apk-output
+          cp "$APK" apk-output/CPAP-CSV-Exporter-debug.apk
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPAP-CSV-Exporter-APK
+          path: apk-output/CPAP-CSV-Exporter-debug.apk
+          if-no-files-found: error
+          retention-days: 30
