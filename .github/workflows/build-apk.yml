@@ -29,10 +29,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android API 37
+      - name: Install Android API 36
         shell: bash
         run: |
-          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Set up Gradle 9.6
         uses: gradle/actions/setup-gradle@v4
@@ -56,6 +56,15 @@ jobs:
           test -n "$SETTINGS"
           PROJECT_DIR=$(dirname "$SETTINGS")
           echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Use stable Android API 36 for compilation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          APP_BUILD='${{ steps.project.outputs.dir }}/app/build.gradle.kts'
+          test -f "$APP_BUILD"
+          sed -i -E 's/compileSdk[[:space:]]*=[[:space:]]*37/compileSdk = 36/' "$APP_BUILD"
+          grep -n 'compileSdk' "$APP_BUILD"
 
       - name: Build debug APK
         shell: bash
